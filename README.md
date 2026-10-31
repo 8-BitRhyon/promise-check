@@ -1,10 +1,29 @@
-# PromiseCheck
+# Settleye
 
-**Autonomous state-reconciliation and execution auditor for AI support agents.** Built for the Meta Global AI Developer Hackathon (Indie Developer Track, Oct 26 - Nov 4, 2026).
+**Your AI agent promised a refund. Did the money move?**
 
-AI agents promise ledger actions in natural language ("I have processed your $50 refund") while the underlying tool call silently fails or never happens. PromiseCheck extracts structured promise entities from transcripts with a Meta model, diffs them against live Stripe/Shopify state, and surfaces mismatches in an exception inbox with one-click remediation.
+Settleye is the execution auditor for AI support agents. AI agents tell customers a refund is processed while the underlying tool call silently fails or never runs. Settleye extracts each promise from the transcript with a Meta model, reconciles it against live Stripe and Shopify state, and surfaces mismatches in an exception inbox with a one-click fix.
 
-## Quickstart (under 5 minutes)
+Live demo: https://8-bitrhyon.github.io/settleye/landing.html
+
+Built for the Meta Global AI Developer Hackathon (Indie Developer Track, Push the Frontier, Oct 26 to Nov 4, 2026).
+
+## How it works
+
+1. **Extract.** `meta-models/muse-spark-open-1026` (via Baseten) returns structured promise objects. Every reply passes Pydantic validation. Bad output gets two repairs, then a loud failure instead of a guess.
+2. **Gate.** Only binding commitments reach the ledger. Retracted, conditional, superseded, and info-only text never reports drift.
+3. **Reconcile.** Each binding refund diffs against settled ledger state: verified, drift, unverifiable, or not binding.
+4. **Explain.** Each drift gets a plain-English summary on demand.
+5. **Remember.** A batch daemon flags orders promised across several tickets.
+6. **Remediate.** One click settles drift through an idempotent service. Retries return the original receipt, never a second refund.
+
+## Measured proof
+
+- Eval set (`fixtures/eval/`, 12 cases): 12 of 12 verdicts correct, 11 of 12 entities exact. Zero non-binding drifts in four chances. See `docs/research/12-eval-results.md`.
+- Live Shopify run: dev-store order #1001 showed $6.00 settled of $50.00 promised. The daemon reported $44.00 at risk in 4.07 seconds.
+- Suite: 82 backend checks plus 18 frontend checks, green on every push.
+
+## Run it yourself (under five minutes)
 
 Backend:
 
@@ -15,37 +34,42 @@ uv run pytest
 uv run uvicorn app.main:app --reload
 ```
 
-Frontend:
+Frontend (in a second terminal):
 
 ```bash
 cd frontend
 npm install
-npm run typecheck
-npm run build
 npm run dev
+```
+
+Open http://localhost:5173. Paste the sample transcript, click Audit transcript.
+
+Batch sweep without the server:
+
+```bash
+cd backend
+uv run python -m app.daemon --dir ../fixtures/eval --ledger mock
 ```
 
 Copy `.env.example` to `.env` and fill in test-mode credentials only. Never commit `.env`.
 
-## How it works
+## API
 
-1. **Ingest:** support transcript or audio in, normalized to text.
-2. **Extract:** `meta-models/muse-spark-open` (via Baseten) returns strict JSON promise entities (Pydantic-validated, bounded retry).
-3. **Reconcile:** daemon diffs asserted state against Stripe test-mode / Shopify dev-store ledger APIs.
-4. **Remediate:** mismatches land in the exception inbox; one click executes the corrective API payload and writes the audit entry.
-
-## Deterministic test harness
-
-- Case A (`fixtures/transcript_happy_path.json`): pleasantries, zero promises, `Verified Green`.
-- Case B (`fixtures/transcript_phantom_refund.json`): $45 refund promised for order #992, ledger shows $0 refunded, `STATE_DRIFT_EXCEPTION`.
+- `POST /audit` takes a transcript and returns promises, results, drifts, and totals.
+- `POST /explain` takes one drift and returns a plain-English summary.
+- `POST /remediate` takes a drift and returns an idempotent receipt.
+- `GET /value` returns recovered dollars and avoided disputes.
 
 ## Docs
 
-- `design.md`: architecture, invariants, key decisions.
-- `docs/research/`: market, competitor, feasibility, and strategy reports.
-- `AGENTS.md`: operating contract for coding agents.
+- `design.md` holds architecture, invariants, and key decisions.
+- `docs/research/12-eval-results.md` holds the measured eval results.
+- `docs/marketing/landing-copy.md` holds the landing page copy.
+- `docs/marketing/deploy-cloudflare.md` holds the static deploy path.
+- `AGENTS.md` holds the operating contract for coding agents.
 
-## Compliance notes
+## Notes
 
-- Intelligence core is Meta models (`meta-models/muse-spark-open`); see `design.md` for the verified model ID.
-- Test-mode and dev-store credentials only. No live payments, no real customer data. All fixtures are synthetic.
+- Intelligence core is Meta open weights (`meta-models/muse-spark-open-1026` per event guide, `MODEL_ID` env overrides).
+- Test-mode and dev-store credentials only. No live payments. No real customer data. All fixtures are synthetic.
+- Greenfield repository built during the event. MIT licensed (see `LICENSE`).
